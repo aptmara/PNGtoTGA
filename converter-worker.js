@@ -21,8 +21,14 @@ self.onmessage = async (event) => {
         try {
             const tgaBlob = await convertFileToTgaBlob(file, options);
             const tgaFileName = file.name.replace(/\.png$/i, '.tga');
-            successResults.push({ filename: tgaFileName, blob: tgaBlob });
-            transferable.push(tgaBlob);
+            
+            // ★修正点: Blobから転送可能なArrayBufferに変換
+            const tgaArrayBuffer = await tgaBlob.arrayBuffer();
+
+            // 結果にはArrayBufferを格納し、転送リストにもArrayBufferを追加
+            successResults.push({ filename: tgaFileName, buffer: tgaArrayBuffer });
+            transferable.push(tgaArrayBuffer);
+            
             self.postMessage({ type: 'file_processed', success: true, filename: file.name });
         } catch (error) {
             const reason = error.message || 'Unknown error';
@@ -31,6 +37,7 @@ self.onmessage = async (event) => {
         }
     }
 
+    // 転送リスト(transferable)にはArrayBufferが入っている
     self.postMessage({
         type: 'task_complete',
         results: successResults,
@@ -46,13 +53,13 @@ async function convertFileToTgaBlob(file, options) {
     imageBitmap.close();
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const tgaData = createTga(imageData, options);
+    // TGAデータをBlobとして返す
     return new Blob([tgaData], { type: 'application/octet-stream' });
 }
 
 function createTga(imageData, options) {
     const { data: pixels, width, height } = imageData;
     
-    // JavaScriptによるピクセル変換処理を呼び出す
     let processedPixels = processPixelsBGRA_JS(pixels);
 
     if (options.flip) {
@@ -82,6 +89,5 @@ function createTga(imageData, options) {
     return tgaFile;
 }
 
-// Workerがロードされたら、すぐに準備完了を通知する
-// このメッセージをindex.htmlが受け取ることで、UIが操作可能になる
+// Workerがロードされたことを通知
 self.postMessage({ type: 'ready' });

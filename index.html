@@ -260,7 +260,10 @@
             ui.progressText.textContent = t('status_zipping');
             ui.downloadButton.disabled = true;
             const zip = new JSZip();
-            for (const result of results) zip.file(result.filename, result.blob);
+            // ★修正点: Workerから渡された buffer (ArrayBuffer) を使用する
+            for (const result of results) {
+                zip.file(result.filename, result.buffer);
+            }
             const zipBlob = await zip.generateAsync({ type: "blob" });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(zipBlob);
