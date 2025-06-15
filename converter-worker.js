@@ -43,8 +43,6 @@ self.onmessage = async (event) => {
         errors: errorResults
     }, transferableBuffers);
 };
-};
-
 async function convertFileToTgaBlob(file, options) {
     const imageBitmap = await createImageBitmap(file);
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
