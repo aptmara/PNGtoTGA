@@ -148,7 +148,6 @@
             errorLog: document.getElementById('error-log'), downloadButton: document.getElementById('download-button'),
             previewArea: document.getElementById('preview-area'), previewGrid: document.getElementById('preview-grid'),
             previewHeader: document.querySelector('[data-i18n="results_previews"]'),
-            // Modal UI elements
             modalOverlay: document.getElementById('modal-overlay'),
             modalContent: document.getElementById('modal-content'),
             modalCanvas: document.getElementById('modal-canvas'),
@@ -281,11 +280,22 @@
                         const item = document.createElement('div');
                         item.className = 'preview-item';
                         item.title = `Click to enlarge ${result.filename}`;
+                        
+                        // *** ここからがデバッグ用に修正した箇所 ***
                         item.addEventListener('click', () => {
-                            parseAndRenderTga(result.buffer, ui.modalCanvas);
-                            ui.modalFilename.textContent = result.filename;
-                            ui.modalOverlay.style.display = 'flex';
+                            console.log('Preview item clicked:', result.filename);
+                            try {
+                                parseAndRenderTga(result.buffer, ui.modalCanvas);
+                                ui.modalFilename.textContent = result.filename;
+                                ui.modalOverlay.style.display = 'flex';
+                                console.log('Modal display style set to "flex". It should be visible.');
+                            } catch (e) {
+                                console.error('An error occurred while trying to open the modal:', e);
+                                alert('プレビューの表示中にエラーが発生しました。開発者コンソールを確認してください。');
+                            }
                         });
+                        // *** ここまでがデバッグ用に修正した箇所 ***
+
                         const label = document.createElement('div');
                         label.className = 'preview-item-label';
                         label.textContent = result.filename;
@@ -341,7 +351,6 @@
             ui.dropZone.addEventListener('dragleave', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); });
             ui.dropZone.addEventListener('drop', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); if (!ui.dropZone.classList.contains('disabled')) handleFiles(e.dataTransfer.files); });
 
-            // Modal closing events
             const closeModal = () => ui.modalOverlay.style.display = 'none';
             ui.modalCloseButton.addEventListener('click', closeModal);
             ui.modalOverlay.addEventListener('click', e => { if (e.target === ui.modalOverlay) closeModal(); });
