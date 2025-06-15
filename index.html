@@ -306,7 +306,7 @@
             });
             
             ui.dropZone.addEventListener('dragover', e => { e.preventDefault(); if (!ui.dropZone.classList.contains('disabled')) ui.dropZone.classList.add('dragover'); });
-            ui.dropZone.addEventListener('dragleave', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); });
+            ui.dropZone.addEventListener('dragleave', e => { e.preventDefault(); ui.dropZone.classList.remove('dragleave'); });
             ui.dropZone.addEventListener('drop', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); if (!ui.dropZone.classList.contains('disabled')) handleFiles(e.dataTransfer.files); });
         }
         
