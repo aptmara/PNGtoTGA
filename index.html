@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>PNG to TGA Converter</title>
-    <meta name="description" content="A high-performance, accessible, in-browser PNG to TGA converter with parallel processing.">
+    <meta name="description" content="A high-performance, accessible, in-browser PNG to TGA converter with parallel processing and TGA preview.">
     <meta name="color-scheme" content="light dark">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
@@ -48,6 +48,12 @@
         #download-button{display:none;padding:.8rem 1.5rem;background-color:var(--success-color);color:#fff;text-decoration:none;border:none;border-radius:6px;font-size:1.2rem;font-weight:600;cursor:pointer;transition:background-color .2s}
         #download-button:hover{background-color:var(--success-hover-color)}
         #download-button i{margin-right:.5rem}
+        /* --- Preview Styles --- */
+        #preview-area { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); }
+        #preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 1rem; }
+        .preview-item { display: flex; flex-direction: column; align-items: center; background-color: var(--stat-bg-color); padding: 0.75rem; border-radius: .25rem; }
+        .preview-item canvas { max-width: 100%; height: auto; border: 1px solid var(--border-color); margin-bottom: 0.5rem; image-rendering: pixelated; background-color: #fff; }
+        .preview-item-label { font-size: 0.8em; color: var(--text-muted-color); text-align: center; word-break: break-all; }
         :focus-visible { outline: 3px solid var(--primary-color); outline-offset: 2px; }
         select:focus-visible, input:focus-visible, button:focus-visible { border-color: var(--primary-color); }
     </style>
@@ -83,7 +89,7 @@
                 </div>
             </details>
         </section>
-        
+
         <section class="card" aria-labelledby="header3">
             <header class="card-header">
                  <i class="fas fa-chart-line"></i>
@@ -91,12 +97,17 @@
             </header>
             <div id="status-area" aria-live="polite">
                 <div id="spinner" class="spinner" role="status">
-                    <span class="sr-only">Loading...</span> </div>
+                    <span class="sr-only">Loading...</span>
+                </div>
                 <p id="progress-text"></p>
             </div>
             <div id="results-area">
                 <p id="summary-text"></p>
                 <div id="stats-area"></div>
+                <div id="preview-area" style="display:none;">
+                    <h3 data-i18n="results_previews"></h3>
+                    <div id="preview-grid"></div>
+                </div>
                 <div id="error-log-area" style="display:none;">
                     <h3 data-i18n="results_errorLog"></h3>
                     <ul id="error-log"></ul>
@@ -116,15 +127,17 @@
             spinner: document.getElementById('spinner'), progressText: document.getElementById('progress-text'),
             resultsArea: document.getElementById('results-area'), summaryText: document.getElementById('summary-text'),
             statsArea: document.getElementById('stats-area'), errorLogArea: document.getElementById('error-log-area'),
-            errorLog: document.getElementById('error-log'), downloadButton: document.getElementById('download-button')
+            errorLog: document.getElementById('error-log'), downloadButton: document.getElementById('download-button'),
+            previewArea: document.getElementById('preview-area'), previewGrid: document.getElementById('preview-grid'),
+            previewHeader: document.querySelector('[data-i18n="results_previews"]')
         };
         const numWorkers = navigator.hardwareConcurrency || 4;
         const SETTINGS_KEY = 'tgaConverterSettings_v1';
         let workerPool = [], isPoolReady = false, startTime, currentLang;
 
         const locales = {
-            ja: { appTitle: "PNG to TGA 変換ツール", header_selectFiles: "1. ファイルを選択", dropZone_text: "ここに複数のPNGファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択", header_options: "2. 変換オプション", options_preset: "プリセット:", options_details: "詳細設定", options_flip: "画像を上下反転 (左下原点):", preset_custom: "カスタム", preset_game: "ゲームエンジン向け (Unity, Unreal Engine)", preset_graphics: "標準グラフィック向け (Photoshop互換)", header_results: "3. 実行と結果", results_errorLog: "エラーログ:", results_downloadBtn: "ZIPファイルをダウンロード", status_initializing: `Workerを初期化中... ({count}/${numWorkers})`, status_ready: `準備完了 (${numWorkers}コア利用可能)。ファイルを選択してください。`, status_starting: "処理を開始しています...", status_processing: "変換中: {current} / {total}", status_zipping: "ZIPファイルを生成中...", status_downloadReady: "ダウンロードが開始されました。", summary_complete: "完了: {success}個成功, {error}個失敗", stats_totalTime: "総処理時間", stats_workers: "使用Worker数", stats_throughput: "スループット", stats_avgTime: "平均処理時間", alert_noPng: "変換可能なPNGファイルがありません。", alert_workerNotReady: "Workerが準備中です。", dropZone_aria: "変換するファイルを選択" },
-            en: { appTitle: "PNG to TGA Converter", header_selectFiles: "1. Select Files", dropZone_text: "Drag & drop PNG files here<br>or click to select", header_options: "2. Conversion Options", options_preset: "Preset:", options_details: "Advanced Settings", options_flip: "Flip Image Vertically (Bottom-Left Origin):", preset_custom: "Custom", preset_game: "For Game Engines (Unity, Unreal Engine)", preset_graphics: "For Standard Graphics (Photoshop compatible)", header_results: "3. Execution & Results", results_errorLog: "Error Log:", results_downloadBtn: "Download ZIP File", status_initializing: `Initializing Workers... ({count}/${numWorkers})`, status_ready: `Ready (${numWorkers} cores available). Please select files.`, status_starting: "Starting process...", status_processing: "Processing: {current} / {total}", status_zipping: "Generating ZIP file...", status_downloadReady: "Your download has started.", summary_complete: "Complete: {success} succeeded, {error} failed", stats_totalTime: "Total Time", stats_workers: "Workers Used", stats_throughput: "Throughput", stats_avgTime: "Avg. Time/File", alert_noPng: "No convertible PNG files found.", alert_workerNotReady: "Workers are not ready yet.", dropZone_aria: "Select files to convert" }
+            ja: { appTitle: "PNG to TGA 変換ツール", header_selectFiles: "1. ファイルを選択", dropZone_text: "ここに複数のPNGファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択", header_options: "2. 変換オプション", options_preset: "プリセット:", options_details: "詳細設定", options_flip: "画像を上下反転 (左下原点):", preset_custom: "カスタム", preset_game: "ゲームエンジン向け (Unity, Unreal Engine)", preset_graphics: "標準グラフィック向け (Photoshop互換)", header_results: "3. 実行と結果", results_previews: "プレビュー", results_errorLog: "エラーログ:", results_downloadBtn: "ZIPファイルをダウンロード", status_initializing: `Workerを初期化中... ({count}/${numWorkers})`, status_ready: `準備完了 (${numWorkers}コア利用可能)。ファイルを選択してください。`, status_starting: "処理を開始しています...", status_processing: "変換中: {current} / {total}", status_zipping: "ZIPファイルを生成中...", status_downloadReady: "ダウンロードが開始されました。", summary_complete: "完了: {success}個成功, {error}個失敗", stats_totalTime: "総処理時間", stats_workers: "使用Worker数", stats_throughput: "スループット", stats_avgTime: "平均処理時間", alert_noPng: "変換可能なPNGファイルがありません。", alert_workerNotReady: "Workerが準備中です。", dropZone_aria: "変換するファイルを選択" },
+            en: { appTitle: "PNG to TGA Converter", header_selectFiles: "1. Select Files", dropZone_text: "Drag & drop PNG files here<br>or click to select", header_options: "2. Conversion Options", options_preset: "Preset:", options_details: "Advanced Settings", options_flip: "Flip Image Vertically (Bottom-Left Origin):", preset_custom: "Custom", preset_game: "For Game Engines (Unity, Unreal Engine)", preset_graphics: "For Standard Graphics (Photoshop compatible)", header_results: "3. Execution & Results", results_previews: "Previews", results_errorLog: "Error Log:", results_downloadBtn: "Download ZIP File", status_initializing: `Initializing Workers... ({count}/${numWorkers})`, status_ready: `Ready (${numWorkers} cores available). Please select files.`, status_starting: "Starting process...", status_processing: "Processing: {current} / {total}", status_zipping: "Generating ZIP file...", status_downloadReady: "Your download has started.", summary_complete: "Complete: {success} succeeded, {error} failed", stats_totalTime: "Total Time", stats_workers: "Workers Used", stats_throughput: "Throughput", stats_avgTime: "Avg. Time/File", alert_noPng: "No convertible PNG files found.", alert_workerNotReady: "Workers are not ready yet.", dropZone_aria: "Select files to convert" }
         };
 
         function t(key, replacements = {}) {
@@ -163,6 +176,16 @@
         function populatePresets() { ui.presetSelect.innerHTML = ''; for (const key in presets) { const o = document.createElement('option'); o.value = key; o.textContent = t(presets[key].nameKey); ui.presetSelect.appendChild(o); } }
         function applyPreset() { const p = presets[ui.presetSelect.value]; if (p && p.options) { ui.flipCheckbox.checked = p.options.flip; } }
 
+        function enableDropZone(isEnabled) {
+            if (isEnabled) {
+                ui.dropZone.classList.remove('disabled');
+                ui.dropZone.onclick = () => ui.fileInput.click();
+            } else {
+                ui.dropZone.classList.add('disabled');
+                ui.dropZone.onclick = null;
+            }
+        }
+
         async function initializeWorkerPool() {
             ui.progressText.textContent = t('status_initializing', { count: 0, total: numWorkers });
             let readyCount = 0;
@@ -181,7 +204,8 @@
             });
             await Promise.all(promises);
             isPoolReady = true;
-            setReadyState(true);
+            enableDropZone(true);
+            ui.progressText.textContent = t('status_ready');
         }
 
         async function handleFiles(files) {
@@ -191,20 +215,21 @@
 
             startTime = performance.now();
             resetUI();
-            setReadyState(false);
+            enableDropZone(false);
             ui.spinner.style.display = 'block';
+            ui.progressText.textContent = t('status_starting');
 
-            const options = { flip: ui.flipCheckbox.checked };
+            const options = { alignToBottomLeft: ui.flipCheckbox.checked };
             const totalFiles = pngFiles.length;
             let processedCount = 0, allSuccessResults = [], allErrorResults = [];
-            
+
             const filesPerWorker = Math.ceil(totalFiles / numWorkers);
             const workerPromises = [];
 
             for (let i = 0; i < numWorkers; i++) {
                 const worker = workerPool[i];
                 const chunk = pngFiles.slice(i * filesPerWorker, (i + 1) * filesPerWorker);
-                
+
                 if (chunk.length > 0) {
                     const promise = new Promise(resolve => {
                         worker.onmessage = e => {
@@ -227,6 +252,41 @@
             showFinalSummary(allSuccessResults, allErrorResults, totalFiles);
         }
 
+        function parseAndRenderTga(tgaBuffer) {
+            const header = new DataView(tgaBuffer, 0, 18);
+            if (header.getUint8(2) !== 2 || header.getUint8(16) !== 32) {
+                console.error("Preview only supports 32-bit uncompressed TGA.");
+                return null;
+            }
+            const width = header.getUint16(12, true);
+            const height = header.getUint16(14, true);
+            const imageDescriptor = header.getUint8(17);
+            const isOriginTopLeft = (imageDescriptor & 0x20) === 0x20;
+            const pixelDataOffset = 18 + header.getUint8(0);
+            const bgra = new Uint8Array(tgaBuffer, pixelDataOffset);
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(width, height);
+            const rgba = imageData.data;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const srcY = isOriginTopLeft ? y : height - 1 - y;
+                    const srcIndex = (srcY * width + x) * 4;
+                    const destIndex = (y * width + x) * 4;
+                    rgba[destIndex]     = bgra[srcIndex + 2]; // R
+                    rgba[destIndex + 1] = bgra[srcIndex + 1]; // G
+                    rgba[destIndex + 2] = bgra[srcIndex];     // B
+                    rgba[destIndex + 3] = bgra[srcIndex + 3]; // A
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            return canvas;
+        }
+
         function showFinalSummary(successes, errors, totalFiles) {
             const totalTimeSeconds = ((performance.now() - startTime) / 1000);
             ui.spinner.style.display = 'none';
@@ -247,13 +307,31 @@
                 ui.errorLogArea.style.display = 'block';
                 ui.errorLog.innerHTML = errors.map(err => `<li><i class="fas fa-exclamation-triangle"></i> ${err.filename}: ${err.reason}</li>`).join('');
             }
-
+            
             if (successes.length > 0) {
+                ui.previewArea.style.display = 'block';
+                ui.previewHeader.style.display = 'block';
+                successes.forEach(result => {
+                    const canvas = parseAndRenderTga(result.buffer);
+                    if (canvas) {
+                        const item = document.createElement('div');
+                        item.className = 'preview-item';
+                        const label = document.createElement('div');
+                        label.className = 'preview-item-label';
+                        label.textContent = result.filename;
+                        item.appendChild(canvas);
+                        item.appendChild(label);
+                        ui.previewGrid.appendChild(item);
+                    }
+                });
+
                 const btnText = ui.downloadButton.querySelector('span');
                 btnText.textContent = t('results_downloadBtn');
                 ui.downloadButton.style.display = 'block';
                 ui.downloadButton.onclick = () => generateZip(successes);
             }
+            
+            enableDropZone(true); // Re-enable drop zone for next batch
         }
 
         async function generateZip(results) {
@@ -267,7 +345,9 @@
             const link = document.createElement('a');
             link.href = URL.createObjectURL(zipBlob);
             link.download = `converted_tga_${Date.now()}.zip`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
             ui.progressText.textContent = t('status_downloadReady');
             ui.downloadButton.disabled = false;
@@ -281,37 +361,28 @@
             ui.errorLog.innerHTML = '';
             ui.downloadButton.style.display = 'none';
             ui.statsArea.innerHTML = '';
-        }
-
-        function setReadyState(isReady) {
-            if (isReady) {
-                ui.dropZone.classList.remove('disabled');
-                ui.progressText.textContent = t('status_ready');
-                ui.dropZone.onclick = () => ui.fileInput.click();
-            } else {
-                ui.dropZone.classList.add('disabled');
-                ui.progressText.textContent = t('status_starting');
-                ui.dropZone.onclick = null;
-            }
+            ui.previewArea.style.display = 'none';
+            ui.previewGrid.innerHTML = '';
+            ui.previewHeader.style.display = 'none';
         }
 
         function setupEventListeners() {
             ui.presetSelect.addEventListener('change', () => { applyPreset(); saveSettings(); });
             ui.flipCheckbox.addEventListener('change', () => { ui.presetSelect.value = 'custom'; saveSettings(); });
             ui.fileInput.addEventListener('change', e => handleFiles(e.target.files));
-            
+
             ui.dropZone.addEventListener('keydown', e => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (isPoolReady && (e.key === 'Enter' || e.key === ' ')) {
                     e.preventDefault();
                     ui.fileInput.click();
                 }
             });
-            
+
             ui.dropZone.addEventListener('dragover', e => { e.preventDefault(); if (!ui.dropZone.classList.contains('disabled')) ui.dropZone.classList.add('dragover'); });
-            ui.dropZone.addEventListener('dragleave', e => { e.preventDefault(); ui.dropZone.classList.remove('dragleave'); });
+            ui.dropZone.addEventListener('dragleave', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); });
             ui.dropZone.addEventListener('drop', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); if (!ui.dropZone.classList.contains('disabled')) handleFiles(e.dataTransfer.files); });
         }
-        
+
         function initializeApp() {
             applyLocale();
             populatePresets();
