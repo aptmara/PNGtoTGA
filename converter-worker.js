@@ -32,17 +32,14 @@ self.onmessage = async (event) => {
         }
     }
 
-    // 1. 成功結果から転送対象のArrayBufferのみを抽出したリストを作成します。
-    const transferableBuffers = successResults.map(result => result.buffer);
-
-    // 2. postMessageの第2引数に転送するArrayBufferのリストを渡します。
-    //    これにより、データがコピーされずに高速にメインスレッドへ移動します。
+    // ★最終修正点: データの転送(transferable)をやめ、コピーで渡す
     self.postMessage({
         type: 'task_complete',
         results: successResults,
         errors: errorResults
-    }, transferableBuffers);
+    });
 };
+
 async function convertFileToTgaBlob(file, options) {
     const imageBitmap = await createImageBitmap(file);
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
