@@ -1,6 +1,3 @@
-// converter-worker.js
-// このWorkerは、担当するファイルの変換処理に特化しています。
-
 let wasmModule;
 let processPixelsWasm;
 
@@ -79,7 +76,7 @@ function createTgaWasm(imageData, options) {
         processedPixels = flippedPixels;
     }
 
-    const imageDescriptor = options.flip ? 8 : 40; // 8 = bottom-left, 40 = top-left
+    const imageDescriptor = options.flip ? 8 : 40; 
     const header = new Uint8Array([
         0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         width & 0xFF, (width >> 8) & 0xFF,
