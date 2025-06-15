@@ -20,26 +20,24 @@
     --border-radius: .5rem;
 }
 
-@media (prefers-color-scheme:dark) {
-    :root {
-        --primary-color: #409cff;
-        --success-color: #20c997;
-        --success-hover-color: #1baa80;
-        --bg-color: #18191a;
-        --card-bg-color: #242526;
-        --text-color: #e4e6eb;
-        --text-muted-color: #b0b3b8;
-        --header-text-color: #e4e6eb;
-        --border-color: #4d4f52;
-        --drop-zone-icon-color: #8a8d91;
-        --stat-bg-color: #3a3b3c;
-        --box-shadow: 0 4px 8px rgba(0,0,0,.3);
-        --warning-bg-color: #4d3800;
-        --warning-border-color: #7d5a00;
-        --warning-text-color: #ffc107;
-        --info-bg-color: #00376b;
-        --info-text-color: #74c0fc;
-    }
+html.dark-theme {
+    --primary-color: #409cff;
+    --success-color: #20c997;
+    --success-hover-color: #1baa80;
+    --bg-color: #18191a;
+    --card-bg-color: #242526;
+    --text-color: #e4e6eb;
+    --text-muted-color: #b0b3b8;
+    --header-text-color: #e4e6eb;
+    --border-color: #4d4f52;
+    --drop-zone-icon-color: #8a8d91;
+    --stat-bg-color: #3a3b3c;
+    --box-shadow: 0 4px 8px rgba(0,0,0,.3);
+    --warning-bg-color: #4d3800;
+    --warning-border-color: #7d5a00;
+    --warning-text-color: #ffc107;
+    --info-bg-color: #00376b;
+    --info-text-color: #74c0fc;
 }
 
 *, *::before, *::after {
@@ -137,12 +135,16 @@ body {
     flex-wrap: wrap;
 }
 
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
 .form-group label {
     font-weight: 600;
     margin-right: .5rem;
 }
 
-.form-group select,.form-group input[type=checkbox] {
+.form-group select,.form-group input,.form-group .theme-switcher {
     vertical-align: middle;
     margin-left: auto;
 }
@@ -153,6 +155,11 @@ body {
     border: 1px solid var(--border-color);
     background-color: var(--card-bg-color);
     color: var(--text-color);
+}
+
+input[type="color"] {
+    min-width: 60px;
+    padding: 0.25rem;
 }
 
 details {
@@ -312,14 +319,18 @@ details summary {
 }
 
 .preview-item {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     background-color: var(--stat-bg-color);
     padding: 0.75rem;
     border-radius: .25rem;
-    cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.preview-item > canvas {
+    cursor: pointer;
 }
 
 .preview-item:hover {
@@ -338,18 +349,41 @@ details summary {
     background-size: 16px 16px;
     background-position: 0 0, 8px 8px;
 }
+
 .preview-item canvas {
     margin-bottom: 0.5rem;
 }
 
 .preview-item-label {
+    position: relative;
+    width: 100%;
+    padding: 2px 0;
     font-size: 0.8em;
     color: var(--text-muted-color);
     text-align: center;
     word-break: break-all;
 }
 
-/* --- Modal Styles --- */
+.filename-text {
+    cursor: pointer;
+    padding: 2px 4px;
+    display: inline-block;
+    width: 100%;
+}
+
+.filename-input {
+    width: 100%;
+    padding: 1px 3px;
+    border: 1px solid var(--primary-color);
+    border-radius: 3px;
+    background-color: var(--card-bg-color);
+    color: var(--text-color);
+    font-size: inherit;
+    font-family: inherit;
+    text-align: center;
+    outline: none;
+}
+
 #modal-overlay {
     position: fixed;
     top: 0;
@@ -409,7 +443,8 @@ details summary {
 }
 
 #modal-filename {
-    margin-top: 1rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
     font-weight: bold;
     color: var(--header-text-color);
     flex-shrink: 0;
@@ -427,4 +462,185 @@ details summary {
 
 select:focus-visible, input:focus-visible, button:focus-visible {
     border-color: var(--primary-color);
+}
+
+button .fa-spinner {
+    display: none;
+}
+
+.btn-loading {
+    cursor: wait;
+    pointer-events: none;
+}
+
+.btn-loading .fa-download {
+    display: none;
+}
+
+.btn-loading .fa-spinner {
+    display: inline-block;
+    animation: spin 1s ease infinite;
+}
+
+.modal-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(0, 0, 0, 0.4);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+    line-height: 44px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    user-select: none;
+    z-index: 1010;
+}
+
+.modal-nav:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modal-nav.hidden {
+    display: none;
+}
+
+#modal-prev {
+    left: 20px;
+}
+
+#modal-next {
+    right: 20px;
+}
+
+.preview-download-btn, .preview-copy-btn {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, background-color 0.2s;
+    z-index: 5;
+}
+
+.preview-item:hover .preview-download-btn, .preview-item:hover .preview-copy-btn {
+    opacity: 1;
+}
+
+.preview-download-btn {
+    top: 8px;
+    right: 8px;
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+.preview-download-btn:hover {
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.preview-copy-btn {
+    top: 8px;
+    left: 8px;
+    background-color: rgba(108, 117, 125, 0.7);
+}
+
+.preview-copy-btn:hover {
+    background-color: rgba(90, 98, 104, 0.9);
+}
+
+#modal-button-area {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+#modal-copy-button {
+    padding: .6rem 1.2rem;
+    background-color: #6c757d;
+    color: #fff;
+    text-decoration: none;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .2s;
+}
+
+#modal-copy-button:hover {
+    background-color: #5a6268;
+}
+
+#modal-download-button {
+    padding: .6rem 1.2rem;
+    background-color: var(--primary-color);
+    color: #fff;
+    text-decoration: none;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .2s;
+}
+
+html.light-theme #modal-download-button:hover {
+    background-color: #0b5ed7;
+}
+
+html.dark-theme #modal-download-button:hover {
+    background-color: #0d6efd;
+}
+
+button .fa-check {
+    display: none;
+}
+
+.btn-copied {
+    background-color: var(--success-color) !important;
+    color: #fff !important;
+}
+
+.btn-copied .fa-copy,
+.btn-copied .fa-download,
+.btn-copied .fa-spinner {
+    display: none;
+}
+
+.btn-copied .fa-check {
+    display: inline-block;
+}
+
+.theme-switcher {
+    display: flex;
+    background-color: var(--bg-color);
+    border-radius: 20px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+}
+.theme-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted-color);
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 16px;
+    transition: background-color 0.2s, color 0.2s;
+}
+.theme-btn.active {
+    background-color: var(--card-bg-color);
+    color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.theme-btn:not(.active):hover {
+    color: var(--text-color);
 }

@@ -21,7 +21,6 @@
                 <input type="file" id="file-input" accept="image/png" multiple>
             </div>
         </section>
-
         <section class="card" aria-labelledby="header2">
             <header class="card-header">
                 <i class="fas fa-sliders-h"></i>
@@ -38,6 +37,18 @@
                     <input type="checkbox" id="flip-vertical-checkbox">
                 </div>
             </details>
+            <div class="form-group" style="border-top: 1px solid var(--border-color); margin-top: 1.5rem; padding-top: 1rem;">
+                <label data-i18n="options_appearance"></label>
+                <div class="theme-switcher">
+                    <button type="button" class="theme-btn" data-theme="light" title="ライトテーマ"><i class="fas fa-sun"></i></button>
+                    <button type="button" class="theme-btn" data-theme="dark" title="ダークテーマ"><i class="fas fa-moon"></i></button>
+                    <button type="button" class="theme-btn" data-theme="system" title="システム設定"><i class="fas fa-desktop"></i></button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="theme-color-picker" data-i18n="options_theme"></label>
+                <input type="color" id="theme-color-picker">
+            </div>
         </section>
         
         <section class="card" aria-labelledby="header3">
@@ -64,321 +75,39 @@
                 </div>
             </div>
              <div id="download-button-area">
-                <button id="download-button"><i class="fas fa-download"></i><span data-i18n="results_downloadBtn"></span></button>
+                <button id="download-button">
+                    <i class="fas fa-download"></i>
+                    <i class="fas fa-spinner"></i>
+                    <span data-i18n="results_downloadBtn"></span>
+                </button>
             </div>
         </section>
     </main>
-
     <div id="modal-overlay">
+        <button id="modal-prev" class="modal-nav hidden" title="Previous (Left Arrow)">&lt;</button>
         <div id="modal-content">
             <span id="modal-close-button" title="Close (Esc)">&times;</span>
             <div id="modal-canvas-container">
                 <canvas id="modal-canvas"></canvas>
             </div>
             <p id="modal-filename"></p>
+            <div id="modal-button-area">
+                <button id="modal-copy-button">
+                    <i class="fas fa-copy"></i>
+                    <i class="fas fa-check"></i>
+                    <span data-i18n="modal_copyBtn"></span>
+                </button>
+                <button id="modal-download-button">
+                    <i class="fas fa-download"></i>
+                    <i class="fas fa-spinner"></i>
+                    <span data-i18n="modal_downloadBtn"></span>
+                </button>
+            </div>
         </div>
+        <button id="modal-next" class="modal-nav hidden" title="Next (Right Arrow)">&gt;</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script>
-        const ui = {
-            dropZone: document.getElementById('drop-zone'), fileInput: document.getElementById('file-input'),
-            presetSelect: document.getElementById('preset-select'), flipCheckbox: document.getElementById('flip-vertical-checkbox'),
-            spinner: document.getElementById('spinner'), progressText: document.getElementById('progress-text'),
-            resultsArea: document.getElementById('results-area'), summaryText: document.getElementById('summary-text'),
-            statsArea: document.getElementById('stats-area'), errorLogArea: document.getElementById('error-log-area'),
-            errorLog: document.getElementById('error-log'), downloadButton: document.getElementById('download-button'),
-            previewArea: document.getElementById('preview-area'), previewGrid: document.getElementById('preview-grid'),
-            previewHeader: document.querySelector('[data-i18n="results_previews"]'),
-            modalOverlay: document.getElementById('modal-overlay'),
-            modalContent: document.getElementById('modal-content'),
-            modalCanvas: document.getElementById('modal-canvas'),
-            modalFilename: document.getElementById('modal-filename'),
-            modalCloseButton: document.getElementById('modal-close-button')
-        };
-        const numWorkers = navigator.hardwareConcurrency || 4;
-        const SETTINGS_KEY = 'tgaConverterSettings_v1';
-        let workerPool = [], isPoolReady = false, startTime, currentLang;
-
-        const locales = {
-            ja: { appTitle: "PNG to TGA 変換ツール", header_selectFiles: "1. ファイルを選択", dropZone_text: "ここに複数のPNGファイルをドラッグ＆ドロップ<br>またはクリックしてファイルを選択", header_options: "2. 変換オプション", options_preset: "プリセット:", options_details: "詳細設定", options_flip: "画像を上下反転 (左下原点):", preset_custom: "カスタム", preset_game: "ゲームエンジン向け (Unity, Unreal Engine)", preset_graphics: "標準グラフィック向け (Photoshop互換)", header_results: "3. 実行と結果", results_previews: "プレビュー (クリックで拡大)", results_errorLog: "エラーログ:", results_downloadBtn: "ZIPファイルをダウンロード", status_initializing: `Workerを初期化中... ({count}/${numWorkers})`, status_ready: `準備完了 (${numWorkers}コア利用可能)。ファイルを選択してください。`, status_starting: "処理を開始しています...", status_processing: "変換中: {current} / {total}", status_zipping: "ZIPファイルを生成中...", status_downloadReady: "ダウンロードが開始されました。", summary_complete: "完了: {success}個成功, {error}個失敗", stats_totalTime: "総処理時間", stats_workers: "使用Worker数", stats_throughput: "スループット", stats_avgTime: "平均処理時間", alert_noPng: "変換可能なPNGファイルがありません。", alert_workerNotReady: "Workerが準備中です。", dropZone_aria: "変換するファイルを選択" },
-            en: { appTitle: "PNG to TGA Converter", header_selectFiles: "1. Select Files", dropZone_text: "Drag & drop PNG files here<br>or click to select", header_options: "2. Conversion Options", options_preset: "Preset:", options_details: "Advanced Settings", options_flip: "Flip Image Vertically (Bottom-Left Origin):", preset_custom: "Custom", preset_game: "For Game Engines (Unity, Unreal Engine)", preset_graphics: "For Standard Graphics (Photoshop compatible)", header_results: "3. Execution & Results", results_previews: "Previews (Click to enlarge)", results_errorLog: "Error Log:", results_downloadBtn: "Download ZIP File", status_initializing: `Initializing Workers... ({count}/${numWorkers})`, status_ready: `Ready (${numWorkers} cores available). Please select files.`, status_starting: "Starting process...", status_processing: "Processing: {current} / {total}", status_zipping: "Generating ZIP file...", status_downloadReady: "Your download has started.", summary_complete: "Complete: {success} succeeded, {error} failed", stats_totalTime: "Total Time", stats_workers: "Workers Used", stats_throughput: "Throughput", stats_avgTime: "Avg. Time/File", alert_noPng: "No convertible PNG files found.", alert_workerNotReady: "Workers are not ready yet.", dropZone_aria: "Select files to convert" }
-        };
-
-        function t(key, replacements = {}) {
-            const langDict = locales[currentLang] || locales.en;
-            let text = langDict[key] || locales.en[key] || key;
-            for (const [placeholder, value] of Object.entries(replacements)) {
-                text = text.replace(`{${placeholder}}`, value);
-            }
-            return text;
-        }
-
-        function applyLocale() {
-            currentLang = navigator.language.startsWith('ja') ? 'ja' : 'en';
-            document.documentElement.lang = currentLang;
-            document.title = t('appTitle');
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.dataset.i18n;
-                const html = t(key);
-                if (el.innerHTML !== html) el.innerHTML = html;
-            });
-            ui.dropZone.setAttribute('aria-label', t('dropZone_aria'));
-        }
-
-        const presets = {
-            custom: { nameKey: 'preset_custom' },
-            game: { nameKey: 'preset_game', options: { flip: true } },
-            graphics: { nameKey: 'preset_graphics', options: { flip: false } }
-        };
-
-        function saveSettings() { const s = { preset: ui.presetSelect.value, flip: ui.flipCheckbox.checked }; localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
-        function loadSettings() {
-            const s = localStorage.getItem(SETTINGS_KEY);
-            if (s) { try { const p = JSON.parse(s); ui.presetSelect.value = p.preset || 'game'; if (p.preset === 'custom') { ui.flipCheckbox.checked = p.flip; } else { applyPreset(); } } catch (e) { applyPreset(); } }
-            else { ui.presetSelect.value = 'game'; applyPreset(); }
-        }
-        function populatePresets() { ui.presetSelect.innerHTML = ''; for (const key in presets) { const o = document.createElement('option'); o.value = key; o.textContent = t(presets[key].nameKey); ui.presetSelect.appendChild(o); } }
-        function applyPreset() { const p = presets[ui.presetSelect.value]; if (p && p.options) { ui.flipCheckbox.checked = p.options.flip; } }
-
-        function enableDropZone(isEnabled) {
-            if (isEnabled) {
-                ui.dropZone.classList.remove('disabled');
-                ui.dropZone.onclick = () => ui.fileInput.click();
-            } else {
-                ui.dropZone.classList.add('disabled');
-                ui.dropZone.onclick = null;
-            }
-        }
-
-        async function initializeWorkerPool() {
-            ui.progressText.textContent = t('status_initializing', { count: 0, total: numWorkers });
-            let readyCount = 0;
-            const promises = Array.from({ length: numWorkers }, () => {
-                return new Promise(resolve => {
-                    const worker = new Worker('converter-worker.js');
-                    worker.onmessage = e => {
-                        if (e.data.type === 'ready') {
-                            readyCount++;
-                            ui.progressText.textContent = t('status_initializing', { count: readyCount, total: numWorkers });
-                            resolve(worker);
-                        }
-                    };
-                    workerPool.push(worker);
-                });
-            });
-            await Promise.all(promises);
-            isPoolReady = true;
-            enableDropZone(true);
-            ui.progressText.textContent = t('status_ready');
-        }
-
-        async function handleFiles(files) {
-            if (!isPoolReady) { alert(t('alert_workerNotReady')); return; }
-            const pngFiles = Array.from(files).filter(f => f.type === 'image/png');
-            if (pngFiles.length === 0) { alert(t('alert_noPng')); return; }
-
-            startTime = performance.now();
-            resetUI();
-            enableDropZone(false);
-            ui.spinner.style.display = 'block';
-            ui.progressText.textContent = t('status_starting');
-
-            const options = { alignToBottomLeft: ui.flipCheckbox.checked };
-            const totalFiles = pngFiles.length;
-            let processedCount = 0, allSuccessResults = [], allErrorResults = [];
-            
-            const filesPerWorker = Math.ceil(totalFiles / numWorkers);
-            const workerPromises = [];
-
-            for (let i = 0; i < numWorkers; i++) {
-                const worker = workerPool[i];
-                const chunk = pngFiles.slice(i * filesPerWorker, (i + 1) * filesPerWorker);
-                
-                if (chunk.length > 0) {
-                    const promise = new Promise(resolve => {
-                        worker.onmessage = e => {
-                            const { type, ...data } = e.data;
-                            if (type === 'file_processed') {
-                                processedCount++;
-                                ui.progressText.textContent = t('status_processing', { current: processedCount, total: totalFiles });
-                            } else if (type === 'task_complete') {
-                                allSuccessResults.push(...data.results);
-                                allErrorResults.push(...data.errors);
-                                resolve();
-                            }
-                        };
-                        worker.postMessage({ files: chunk, options });
-                    });
-                    workerPromises.push(promise);
-                }
-            }
-            await Promise.all(workerPromises);
-            showFinalSummary(allSuccessResults, allErrorResults, totalFiles);
-        }
-
-        function parseAndRenderTga(tgaBuffer, targetCanvas) {
-            const header = new DataView(tgaBuffer, 0, 18);
-            if (header.getUint8(2) !== 2 || header.getUint8(16) !== 32) {
-                console.error("Preview only supports 32-bit uncompressed TGA.");
-                return null;
-            }
-            const width = header.getUint16(12, true);
-            const height = header.getUint16(14, true);
-            const imageDescriptor = header.getUint8(17);
-            const isOriginTopLeft = (imageDescriptor & 0x20) === 0x20;
-            const pixelDataOffset = 18 + header.getUint8(0);
-            const bgra = new Uint8Array(tgaBuffer, pixelDataOffset);
-            
-            const canvas = targetCanvas || document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx.createImageData(width, height);
-            const rgba = imageData.data;
-
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const srcY = isOriginTopLeft ? y : height - 1 - y;
-                    const srcIndex = (srcY * width + x) * 4;
-                    const destIndex = (y * width + x) * 4;
-                    rgba[destIndex]     = bgra[srcIndex + 2]; // R
-                    rgba[destIndex + 1] = bgra[srcIndex + 1]; // G
-                    rgba[destIndex + 2] = bgra[srcIndex];     // B
-                    rgba[destIndex + 3] = bgra[srcIndex + 3]; // A
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
-            return canvas;
-        }
-
-        function showFinalSummary(successes, errors, totalFiles) {
-            const totalTimeSeconds = ((performance.now() - startTime) / 1000);
-            ui.spinner.style.display = 'none';
-            ui.progressText.textContent = '';
-            ui.resultsArea.style.display = 'block';
-            ui.summaryText.textContent = t('summary_complete', { success: successes.length, error: errors.length });
-            ui.summaryText.className = errors.length > 0 ? 'has-error' : 'all-success';
-
-            const stats = {
-                [t('stats_totalTime')]: { value: `${totalTimeSeconds.toFixed(2)} s`, icon: "fa-solid fa-stopwatch" },
-                [t('stats_workers')]: { value: `${numWorkers} Cores`, icon: "fa-solid fa-microchip" },
-                [t('stats_throughput')]: { value: `${(totalFiles / totalTimeSeconds).toFixed(2)} files/s`, icon: "fa-solid fa-gauge-high" },
-                [t('stats_avgTime')]: { value: `${(totalTimeSeconds / totalFiles * 1000).toFixed(0)} ms/file`, icon: "fa-solid fa-clock-rotate-left" }
-            };
-            ui.statsArea.innerHTML = Object.entries(stats).map(([label, { value, icon }]) => `<div class="stat-item"><i class="${icon}"></i><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`).join('');
-
-            if (errors.length > 0) {
-                ui.errorLogArea.style.display = 'block';
-                ui.errorLog.innerHTML = errors.map(err => `<li><i class="fas fa-exclamation-triangle"></i> ${err.filename}: ${err.reason}</li>`).join('');
-            }
-
-            if (successes.length > 0) {
-                ui.previewArea.style.display = 'block';
-                ui.previewHeader.style.display = 'block';
-                successes.forEach(result => {
-                    const canvas = parseAndRenderTga(result.buffer);
-                    if (canvas) {
-                        const item = document.createElement('div');
-                        item.className = 'preview-item';
-                        item.title = `Click to enlarge ${result.filename}`;
-                        
-                        item.addEventListener('click', () => {
-                            parseAndRenderTga(result.buffer, ui.modalCanvas);
-                            ui.modalFilename.textContent = result.filename;
-                            ui.modalOverlay.style.display = 'flex';
-                        });
-
-                        const label = document.createElement('div');
-                        label.className = 'preview-item-label';
-                        label.textContent = result.filename;
-                        item.appendChild(canvas);
-                        item.appendChild(label);
-                        ui.previewGrid.appendChild(item);
-                    }
-                });
-
-                const btnText = ui.downloadButton.querySelector('span');
-                btnText.textContent = t('results_downloadBtn');
-                ui.downloadButton.style.display = 'block';
-                ui.downloadButton.onclick = () => generateZip(successes);
-            }
-            
-            enableDropZone(true);
-        }
-
-        async function generateZip(results) {
-            ui.progressText.textContent = t('status_zipping');
-            ui.downloadButton.disabled = true;
-            const zip = new JSZip();
-            for (const result of results) {
-                zip.file(result.filename, result.buffer);
-            }
-            const zipBlob = await zip.generateAsync({ type: "blob" });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = `converted_tga_${Date.now()}.zip`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-            ui.progressText.textContent = t('status_downloadReady');
-            ui.downloadButton.disabled = false;
-        }
-
-        function resetUI() {
-            ui.spinner.style.display = 'none';
-            ui.progressText.textContent = '';
-            ui.resultsArea.style.display = 'none';
-            ui.errorLogArea.style.display = 'none';
-            ui.errorLog.innerHTML = '';
-            ui.downloadButton.style.display = 'none';
-            ui.statsArea.innerHTML = '';
-            ui.previewArea.style.display = 'none';
-            ui.previewGrid.innerHTML = '';
-            ui.previewHeader.style.display = 'none';
-        }
-
-        function setupEventListeners() {
-            ui.presetSelect.addEventListener('change', () => { applyPreset(); saveSettings(); });
-            ui.flipCheckbox.addEventListener('change', () => { ui.presetSelect.value = 'custom'; saveSettings(); });
-            ui.fileInput.addEventListener('change', e => handleFiles(e.target.files));
-            
-            ui.dropZone.addEventListener('keydown', e => {
-                if (isPoolReady && (e.key === 'Enter' || e.key === ' ')) {
-                    e.preventDefault();
-                    ui.fileInput.click();
-                }
-            });
-            
-            ui.dropZone.addEventListener('dragover', e => { e.preventDefault(); if (!ui.dropZone.classList.contains('disabled')) ui.dropZone.classList.add('dragover'); });
-            ui.dropZone.addEventListener('dragleave', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); });
-            ui.dropZone.addEventListener('drop', e => { e.preventDefault(); ui.dropZone.classList.remove('dragover'); if (!ui.dropZone.classList.contains('disabled')) handleFiles(e.dataTransfer.files); });
-        
-            // Modal closing events
-            const closeModal = () => ui.modalOverlay.style.display = 'none';
-            ui.modalCloseButton.addEventListener('click', closeModal);
-            ui.modalOverlay.addEventListener('click', e => {
-                if (e.target === ui.modalOverlay) {
-                    closeModal();
-                }
-            });
-            window.addEventListener('keydown', e => {
-                if (e.key === 'Escape' && ui.modalOverlay.style.display !== 'none') {
-                    closeModal();
-                }
-            });
-        }
-        
-        function initializeApp() {
-            applyLocale();
-            populatePresets();
-            initializeWorkerPool();
-            setupEventListeners();
-            loadSettings();
-        }
-
-        initializeApp();
-    </script>
+    <script src="script.js" defer></script>
 </body>
 </html>
