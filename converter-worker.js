@@ -1,23 +1,16 @@
-let wasmModule;
-let processPixelsWasm;
-
-async function initializeWasm() {
-    const wasmBase64 = "AGFzbQEAAAABBgFgAX4AAwIBAAcHBAVhdXRoAgZtZW1vcnkCAAVfZGF0YQEBCg0BBwVfZGF0YQMLCgkBbWVtb3J5AwoNAQEJAQMJBwsfBwVhdXRoAwZtZW1vcnkDBQRkYXRhAwAIKQMAAQqgAQMCAQAELAEgAQt/AUEAAiABIQIgBH8gACEDIABoAgsLdws=";
-    const wasmBinary = Uint8Array.from(atob(wasmBase64), c => c.charCodeAt(0));
-    const memory = new WebAssembly.Memory({ initial: 256 });
-    const { instance } = await WebAssembly.instantiate(wasmBinary, { env: { memory, __memory_base: 0, __table_base: 0 } });
-    processPixelsWasm = (pointer, numPixels) => instance.exports.process_pixels_bgra(pointer, numPixels);
-    let malloc_ptr = instance.exports.__heap_base || 1024;
-    wasmModule = {
-        _malloc: size => { const ptr = malloc_ptr; malloc_ptr += size; return ptr; },
-        _free: ptr => {},
-        HEAPU8: new Uint8Array(memory.buffer)
-    };
-    self.postMessage({ type: 'ready' });
+// ピクセル形式をBGRAに変換するJavaScript関数
+function processPixelsBGRA_JS(pixels) {
+    const newPixels = new Uint8Array(pixels.length);
+    for (let i = 0; i < pixels.length; i += 4) {
+        newPixels[i]     = pixels[i + 2]; // Blue
+        newPixels[i + 1] = pixels[i + 1]; // Green
+        newPixels[i + 2] = pixels[i];     // Red
+        newPixels[i + 3] = pixels[i + 3]; // Alpha
+    }
+    return newPixels;
 }
 
-initializeWasm();
-
+// Web Workerのメイン処理
 self.onmessage = async (event) => {
     const { files, options } = event.data;
     const successResults = [];
@@ -52,16 +45,15 @@ async function convertFileToTgaBlob(file, options) {
     ctx.drawImage(imageBitmap, 0, 0);
     imageBitmap.close();
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const tgaData = createTgaWasm(imageData, options);
+    const tgaData = createTga(imageData, options);
     return new Blob([tgaData], { type: 'application/octet-stream' });
 }
 
-function createTgaWasm(imageData, options) {
+function createTga(imageData, options) {
     const { data: pixels, width, height } = imageData;
-    const bufferPtr = wasmModule._malloc(pixels.length);
-    wasmModule.HEAPU8.set(pixels, bufferPtr);
-    processPixelsWasm(bufferPtr, width * height);
-    let processedPixels = new Uint8Array(wasmModule.HEAPU8.buffer, bufferPtr, pixels.length);
+    
+    // JavaScriptによるピクセル変換処理を呼び出す
+    let processedPixels = processPixelsBGRA_JS(pixels);
 
     if (options.flip) {
         const flippedPixels = new Uint8Array(pixels.length);
@@ -87,6 +79,9 @@ function createTgaWasm(imageData, options) {
     const tgaFile = new Uint8Array(header.length + processedPixels.length);
     tgaFile.set(header, 0);
     tgaFile.set(processedPixels, header.length);
-    wasmModule._free(bufferPtr);
     return tgaFile;
 }
+
+// Workerがロードされたら、すぐに準備完了を通知する
+// このメッセージをindex.htmlが受け取ることで、UIが操作可能になる
+self.postMessage({ type: 'ready' });

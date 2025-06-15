@@ -164,12 +164,21 @@
         function applyPreset() { const p = presets[ui.presetSelect.value]; if (p && p.options) { ui.flipCheckbox.checked = p.options.flip; } }
 
         async function initializeWorkerPool() {
-            ui.progressText.textContent = t('status_initializing', { count: 0 });
-            const promises = Array.from({ length: numWorkers }, () => new Promise(resolve => {
-                const worker = new Worker('converter-worker.js');
-                worker.onmessage = e => { if (e.data.type === 'ready') { ui.progressText.textContent = t('status_initializing', { count: workerPool.length + 1 }); resolve(worker); } };
-                workerPool.push(worker);
-            }));
+            ui.progressText.textContent = t('status_initializing', { count: 0, total: numWorkers });
+            let readyCount = 0;
+            const promises = Array.from({ length: numWorkers }, () => {
+                return new Promise(resolve => {
+                    const worker = new Worker('converter-worker.js');
+                    worker.onmessage = e => {
+                        if (e.data.type === 'ready') {
+                            readyCount++;
+                            ui.progressText.textContent = t('status_initializing', { count: readyCount, total: numWorkers });
+                            resolve(worker);
+                        }
+                    };
+                    workerPool.push(worker);
+                });
+            });
             await Promise.all(promises);
             isPoolReady = true;
             setReadyState(true);
@@ -187,30 +196,35 @@
 
             const options = { flip: ui.flipCheckbox.checked };
             const totalFiles = pngFiles.length;
-            let processedCount = 0, finishedWorkers = 0, allSuccessResults = [], allErrorResults = [];
-            const tasks = Array.from({ length: numWorkers }, () => []);
-            pngFiles.forEach((file, index) => tasks[index % numWorkers].push(file));
+            let processedCount = 0, allSuccessResults = [], allErrorResults = [];
+            
+            const filesPerWorker = Math.ceil(totalFiles / numWorkers);
+            const workerPromises = [];
 
-            workerPool.forEach((worker, index) => {
-                if (tasks[index].length > 0) {
-                    worker.onmessage = e => {
-                        const { type, ...data } = e.data;
-                        if (type === 'file_processed') {
-                            processedCount++;
-                            ui.progressText.textContent = t('status_processing', { current: processedCount, total: totalFiles });
-                        } else if (type === 'task_complete') {
-                            allSuccessResults.push(...data.results);
-                            allErrorResults.push(...data.errors);
-                            finishedWorkers++;
-                            if (finishedWorkers === numWorkers) showFinalSummary(allSuccessResults, allErrorResults, totalFiles);
-                        }
-                    };
-                    worker.postMessage({ files: tasks[index], options });
-                } else {
-                    finishedWorkers++;
-                    if (finishedWorkers === numWorkers) showFinalSummary(allSuccessResults, allErrorResults, totalFiles);
+            for (let i = 0; i < numWorkers; i++) {
+                const worker = workerPool[i];
+                const chunk = pngFiles.slice(i * filesPerWorker, (i + 1) * filesPerWorker);
+                
+                if (chunk.length > 0) {
+                    const promise = new Promise(resolve => {
+                        worker.onmessage = e => {
+                            const { type, ...data } = e.data;
+                            if (type === 'file_processed') {
+                                processedCount++;
+                                ui.progressText.textContent = t('status_processing', { current: processedCount, total: totalFiles });
+                            } else if (type === 'task_complete') {
+                                allSuccessResults.push(...data.results);
+                                allErrorResults.push(...data.errors);
+                                resolve();
+                            }
+                        };
+                        worker.postMessage({ files: chunk, options });
+                    });
+                    workerPromises.push(promise);
                 }
-            });
+            }
+            await Promise.all(workerPromises);
+            showFinalSummary(allSuccessResults, allErrorResults, totalFiles);
         }
 
         function showFinalSummary(successes, errors, totalFiles) {
