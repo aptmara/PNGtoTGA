@@ -15,19 +15,14 @@ self.onmessage = async (event) => {
     const { files, options } = event.data;
     const successResults = [];
     const errorResults = [];
-    const transferable = [];
 
     for (const file of files) {
         try {
             const tgaBlob = await convertFileToTgaBlob(file, options);
             const tgaFileName = file.name.replace(/\.png$/i, '.tga');
-            
-            // ★修正点: Blobから転送可能なArrayBufferに変換
             const tgaArrayBuffer = await tgaBlob.arrayBuffer();
 
-            // 結果にはArrayBufferを格納し、転送リストにもArrayBufferを追加
             successResults.push({ filename: tgaFileName, buffer: tgaArrayBuffer });
-            transferable.push(tgaArrayBuffer);
             
             self.postMessage({ type: 'file_processed', success: true, filename: file.name });
         } catch (error) {
@@ -37,12 +32,12 @@ self.onmessage = async (event) => {
         }
     }
 
-    // 転送リスト(transferable)にはArrayBufferが入っている
+    // ★最終修正点: データの転送(transferable)をやめ、コピーで渡す
     self.postMessage({
         type: 'task_complete',
         results: successResults,
         errors: errorResults
-    }, transferable);
+    });
 };
 
 async function convertFileToTgaBlob(file, options) {
@@ -53,7 +48,6 @@ async function convertFileToTgaBlob(file, options) {
     imageBitmap.close();
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const tgaData = createTga(imageData, options);
-    // TGAデータをBlobとして返す
     return new Blob([tgaData], { type: 'application/octet-stream' });
 }
 

@@ -260,7 +260,6 @@
             ui.progressText.textContent = t('status_zipping');
             ui.downloadButton.disabled = true;
             const zip = new JSZip();
-            // ★修正点: Workerから渡された buffer (ArrayBuffer) を使用する
             for (const result of results) {
                 zip.file(result.filename, result.buffer);
             }
